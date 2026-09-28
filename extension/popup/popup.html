@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Codex 登陆助手</title>
+  <title>Codex 登录助手</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 
@@ -19,8 +19,8 @@
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
         </svg>
         <div class="logo-text">
-          <h1>Codex 登陆助手</h1>
-          <span class="logo-sub">Codex Auth Helper v1.0.0</span>
+          <h1>Codex 登录助手</h1>
+          <span class="logo-sub">Codex Auth Helper v1.1.0</span>
         </div>
       </div>
     </header>
@@ -34,7 +34,7 @@
           <div class="loader-ring"></div>
           <div class="loader-dot"></div>
         </div>
-        <p class="loading-text">正在安全地获取登陆信息...</p>
+        <p class="loading-text">正在准备登录...</p>
       </div>
 
       <!-- 未登录状态 -->
@@ -45,13 +45,10 @@
               d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h2 class="state-title">未检测到 ChatGPT 登录</h2>
-        <p class="state-desc">请先登录 ChatGPT 账号。插件将安全地从您本地浏览器缓存中提取登录凭证，免除手机号验证。</p>
-        <button id="btn-login" class="btn-primary ripple">
-          <span>一键跳转 ChatGPT 登录</span>
-          <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
+        <h2 class="state-title">使用 Codex 官方登录</h2>
+        <p class="state-desc">通过官方 OAuth 授权获取真实令牌。登录页面要求的账户验证仍需按提示完成。</p>
+        <button id="btn-oauth-start-unauthorized" class="btn-primary ripple" type="button">
+          开始官方登录并生成 auth.json
         </button>
       </div>
 
@@ -93,7 +90,7 @@
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            <span>导出身份信息</span>
+            <span>通过 Codex 官方登录导出</span>
           </button>
         </div>
 
@@ -110,14 +107,14 @@
               <div class="step-item">
                 <span class="step-num">1</span>
                 <div class="step-content">
-                  <h5>第一步：导出身份信息</h5>
-                  <p>点击上方“导出身份信息”按钮，系统将自动把您本地的 ChatGPT 身份验证数据导出并下载保存为 <code>auth.json</code> 文件。</p>
+                  <h5>第一步：完成官方登录</h5>
+                  <p>点击“通过 Codex 官方登录导出”，完成登录后将浏览器回调地址粘贴回插件，即可保存真实 OAuth 令牌组成的 <code>auth.json</code>。</p>
                 </div>
               </div>
               <div class="step-item">
                 <span class="step-num">2</span>
                 <div class="step-content">
-                  <h5>第二步：将身份信息拷贝或移动到Codex配置目录</h5>
+                  <h5>第二步：将文件放入 Codex 配置目录</h5>
                   <p>将 <code>auth.json</code> 移动到本机 Codex 配置目录中：</p>
                   <div class="path-details">
                     <p><strong>Windows:</strong> <code>%USERPROFILE%\.codex\auth.json</code></p>
@@ -129,7 +126,7 @@
                 <span class="step-num">3</span>
                 <div class="step-content">
                   <h5>第三步：启动 Codex</h5>
-                  <p>文件放置完成后，直接启动或重启您的 Codex 客户端，即可自动加载授权，免除任何手机号验证流程。</p>
+                  <p>文件放置完成后启动 Codex。官方登录过程中要求的账户验证仍需按页面提示完成。</p>
                 </div>
               </div>
             </div>
@@ -155,7 +152,7 @@
               <li>
                 <span class="privacy-bullet primary">●</span>
                 <div class="privacy-item">
-                  <strong>隐私安全</strong>：浏览器本地完成
+                  <strong>隐私安全</strong>：直接连接官方认证站点，不经过第三方中转
                 </div>
               </li>
               <li>
@@ -170,6 +167,13 @@
 
       </div>
 
+      <section id="oauth-callback-panel" class="oauth-callback-panel" hidden>
+        <h3>完成官方 OAuth 登录</h3>
+        <p>完成登录后，浏览器会跳转到本机回调地址并显示连接失败。复制地址栏中的完整链接，粘贴到下面继续。</p>
+        <textarea id="oauth-callback-url" rows="3" placeholder="http://127.0.0.1:1457/auth/callback?code=...&state=..."></textarea>
+        <button id="btn-oauth-complete" class="btn-primary ripple" type="button">验证回调并导出 auth.json</button>
+      </section>
+
     </main>
 
     <!-- 安全声明页脚 -->
@@ -179,7 +183,7 @@
           <path stroke-linecap="round" stroke-linejoin="round"
             d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
         </svg>
-        <span>数据不上云 • 隐私安全 • 本地沙盒处理</span>
+        <span>直连官方认证站点 • 本地导出文件</span>
       </div>
     </footer>
 

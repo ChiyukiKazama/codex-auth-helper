@@ -462,6 +462,46 @@ body {
   transform: translateY(1px);
 }
 
+.oauth-callback-panel {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.oauth-callback-panel h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.oauth-callback-panel p {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.oauth-callback-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  margin-bottom: 10px;
+  padding: 9px;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  font: 10px/1.4 monospace;
+}
+
+.oauth-callback-panel button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .btn-icon {
   width: 16px;
   height: 16px;

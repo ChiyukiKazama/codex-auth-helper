@@ -3,12 +3,13 @@
   "name": "Codex认证助手",
   "short_name": "Codex Auth Helper",
   "version": "1.1.0",
-  "description": "安全地在本地导出您的已登录 ChatGPT 会话配置，生成符合 Codex 规范的 auth.json 本地备份文件。纯本地离线处理。",
+  "description": "通过 Codex 官方 OAuth + PKCE 登录，在本地生成包含真实令牌的 auth.json。",
   "permissions": [
-    "downloads"
+    "downloads",
+    "storage"
   ],
   "host_permissions": [
-    "https://chatgpt.com/"
+    "https://auth.openai.com/*"
   ],
   "action": {
     "default_popup": "popup/popup.html"
