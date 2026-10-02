@@ -1,41 +1,16 @@
 // background.js — 官方 OAuth + PKCE 授权码交换与文件下载
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'download_auth_json') {
-    // 在 Service Worker 进程中执行下载，完全独立于 Popup 生命周期
-    const dataUrl = 'data:application/json;charset=utf-8,' + encodeURIComponent(message.jsonContent);
-    chrome.downloads.download({
-      url: dataUrl,
-      filename: 'auth.json',
-      saveAs: false
-    }, (downloadId) => {
-      if (chrome.runtime.lastError) {
-        console.error('下载异常:', chrome.runtime.lastError);
-        sendResponse({ success: false, error: chrome.runtime.lastError.message });
-      } else {
-        sendResponse({ success: true, downloadId: downloadId });
-      }
-    });
-    return true; // 保持异步通信通道开启
-  }
-
   if (message.action === 'oauth_start') {
-    startCodexOAuth()
-      .then(authUrl => sendResponse({ success: true, authUrl }))
+    openCodexOAuth()
+      .then(() => sendResponse({ success: true }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
 
-  if (message.action === 'oauth_pending') {
-    chrome.storage.session.get('codexOAuthPending', ({ codexOAuthPending }) => {
-      sendResponse({ success: true, pending: Boolean(codexOAuthPending) });
-    });
-    return true;
-  }
-
-  if (message.action === 'oauth_complete') {
-    completeCodexOAuth(message.callbackUrl)
-      .then(tokens => sendResponse({ success: true, data: tokens }))
+  if (message.action === 'oauth_status') {
+    getOAuthStatus()
+      .then(status => sendResponse({ success: true, status }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
@@ -43,6 +18,100 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 const CODEX_OAUTH_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
 const CODEX_OAUTH_REDIRECT_URI = 'http://127.0.0.1:1457/auth/callback';
+const completingStates = new Set();
+let startingOAuth = false;
+
+// Capture the main-frame URL before localhost connection failure. Listeners
+// are registered at worker startup so Chrome can wake a suspended worker.
+const callbackFilter = { url: [{ hostEquals: '127.0.0.1', pathEquals: '/auth/callback' }] };
+for (const event of [chrome.webNavigation.onBeforeNavigate, chrome.webNavigation.onCommitted, chrome.webNavigation.onErrorOccurred]) {
+  event.addListener(details => handleOAuthNavigation(details).catch(() => {}), callbackFilter);
+}
+
+chrome.downloads.onChanged.addListener(delta => handleDownloadChange(delta).catch(() => {}));
+
+async function setOAuthStatus(status) {
+  await chrome.storage.session.set({ codexOAuthStatus: status });
+}
+
+async function getOAuthStatus() {
+  const stored = await chrome.storage.session.get(['codexOAuthStatus', 'codexOAuthPending']);
+  const pending = stored.codexOAuthPending;
+  if (pending && (Date.now() - pending.createdAt > 10 * 60 * 1000 ||
+      (pending.phase === 'exchanging' && !completingStates.has(pending.state)))) {
+    await chrome.storage.session.remove('codexOAuthPending');
+    await setOAuthStatus({ phase: 'failed', message: '登录请求已过期或中断，请重新开始登录。' });
+    return { phase: 'failed', message: '登录请求已过期或中断，请重新开始登录。' };
+  }
+  return stored.codexOAuthStatus || { phase: 'idle' };
+}
+
+async function openCodexOAuth() {
+  if (startingOAuth || completingStates.size) throw new Error('登录正在处理中，请稍候。');
+  startingOAuth = true;
+  try {
+    const authUrl = await startCodexOAuth();
+    const tab = await chrome.tabs.create({ url: 'about:blank', active: true });
+    const { codexOAuthPending: pending } = await chrome.storage.session.get('codexOAuthPending');
+    await chrome.storage.session.set({ codexOAuthPending: { ...pending, tabId: tab.id } });
+    await setOAuthStatus({ phase: 'waiting', message: '请在打开的页面完成登录，完成后将自动下载。' });
+    await chrome.tabs.update(tab.id, { url: authUrl });
+  } catch (error) {
+    await chrome.storage.session.remove('codexOAuthPending');
+    await setOAuthStatus({ phase: 'failed', message: '无法打开登录页面，请重新尝试。' });
+    throw error;
+  } finally { startingOAuth = false; }
+}
+
+async function handleOAuthNavigation(details) {
+  if (details.frameId !== 0) return;
+  let callback;
+  try { callback = new URL(details.url); } catch { return; }
+  if (`${callback.origin}${callback.pathname}` !== CODEX_OAUTH_REDIRECT_URI) return;
+  const { codexOAuthPending: pending } = await chrome.storage.session.get('codexOAuthPending');
+  if (!pending || pending.tabId !== details.tabId || callback.searchParams.get('state') !== pending.state ||
+      pending.phase === 'exchanging' || completingStates.has(pending.state)) return;
+  completingStates.add(pending.state);
+  try {
+    await chrome.storage.session.set({ codexOAuthPending: { ...pending, phase: 'exchanging' } });
+    await setOAuthStatus({ phase: 'exchanging', message: '已收到登录回调，正在生成 auth.json…' });
+    // Replace the callback URL with a local status page, also removing the
+    // authorization code from the address bar. A closed tab must not abort export.
+    await chrome.tabs.update(details.tabId, { url: chrome.runtime.getURL('popup/popup.html') }).catch(() => {});
+    const tokens = await completeCodexOAuth(details.url);
+    await downloadAuthJson(generateCodexAuthJson(tokens));
+  } catch {
+    await chrome.storage.session.remove('codexOAuthPending');
+    // Never persist server error text: it could contain a code or token.
+    await setOAuthStatus({ phase: 'failed', message: '登录或下载未完成，请重新登录。' });
+  } finally { completingStates.delete(pending.state); }
+}
+
+async function downloadAuthJson(jsonContent) {
+  const downloadId = await chrome.downloads.download({
+    url: 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonContent),
+    filename: 'auth.json',
+    saveAs: false,
+    conflictAction: 'uniquify'
+  });
+  await setOAuthStatus({ phase: 'downloading', downloadId, message: 'auth.json 已开始自动下载。' });
+  // A small data URL can complete before its id is saved. Query once to catch
+  // that race; subsequent transitions are handled by downloads.onChanged.
+  await handleDownloadChange({ id: downloadId });
+  return downloadId;
+}
+
+async function handleDownloadChange(delta) {
+  const { codexOAuthStatus: status } = await chrome.storage.session.get('codexOAuthStatus');
+  if (!status || status.phase !== 'downloading' || status.downloadId !== delta.id) return;
+  const [download] = await chrome.downloads.search({ id: delta.id });
+  if (download?.state === 'complete') {
+    const filename = download.filename.split(/[\\/]/).pop();
+    await setOAuthStatus({ phase: 'complete', message: `已自动保存 ${filename}，请在浏览器下载列表中查看。` });
+  } else if (download?.state === 'interrupted') {
+    await setOAuthStatus({ phase: 'failed', message: '文件下载被中断，请重新登录并导出。' });
+  }
+}
 
 async function startCodexOAuth() {
   const verifierBytes = crypto.getRandomValues(new Uint8Array(32));
@@ -83,11 +152,11 @@ async function completeCodexOAuth(callbackUrl) {
   try {
     callback = new URL(callbackUrl);
   } catch {
-    throw new Error('请粘贴浏览器地址栏中的完整回调链接。');
+    throw new Error('OAuth 回调链接无效。');
   }
 
   if (`${callback.origin}${callback.pathname}` !== CODEX_OAUTH_REDIRECT_URI) {
-    throw new Error('回调链接地址不匹配，请粘贴 127.0.0.1:1457/auth/callback 页面地址。');
+    throw new Error('OAuth 回调链接地址不匹配。');
   }
   if (callback.searchParams.get('state') !== pending.state) {
     throw new Error('OAuth state 校验失败。请使用本次登录产生的回调链接重新尝试。');
@@ -173,4 +242,38 @@ function decodeJwtPayload(token) {
   const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
   const decoded = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='));
   return JSON.parse(new TextDecoder().decode(Uint8Array.from(decoded, char => char.charCodeAt(0))));
+}
+
+function generateCodexAuthJson(oauthTokens) {
+  const refreshToken = oauthTokens?.refresh_token;
+  if (typeof refreshToken !== 'string' || refreshToken.trim() === '') {
+    throw new Error('官方 OAuth 登录结果缺少 refresh_token，请重新登录后再导出。');
+  }
+
+  const accessToken = oauthTokens?.access_token;
+  if (typeof accessToken !== 'string' || accessToken.trim() === '') {
+    throw new Error('无法导出：OAuth 登录结果缺少 access_token。');
+  }
+
+  const idToken = oauthTokens?.id_token;
+  if (typeof idToken !== 'string' || idToken.trim() === '') {
+    throw new Error('无法导出：OAuth 登录结果缺少 id_token。');
+  }
+
+  const accountId = oauthTokens.account_id;
+  const apiKey = oauthTokens.api_key;
+
+  const authConfig = {
+    auth_mode: "chatgpt",
+    OPENAI_API_KEY: typeof apiKey === 'string' && apiKey.trim() ? apiKey : null,
+    tokens: {
+      id_token: idToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      account_id: typeof accountId === 'string' && accountId ? accountId : null
+    },
+    last_refresh: new Date().toISOString()
+  };
+
+  return JSON.stringify(authConfig, null, 2);
 }

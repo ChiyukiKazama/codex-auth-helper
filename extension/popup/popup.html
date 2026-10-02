@@ -20,7 +20,7 @@
         </svg>
         <div class="logo-text">
           <h1>Codex 登录助手</h1>
-          <span class="logo-sub">Codex Auth Helper v1.1.0</span>
+          <span class="logo-sub">Codex Auth Helper v1.2.0</span>
         </div>
       </div>
     </header>
@@ -46,132 +46,15 @@
           </svg>
         </div>
         <h2 class="state-title">使用 Codex 官方登录</h2>
-        <p class="state-desc">通过官方 OAuth 授权获取真实令牌。登录页面要求的账户验证仍需按提示完成。</p>
+        <p class="state-desc">完成官方登录后，扩展会自动接收回调并下载 auth.json。请按登录页面提示完成账户验证。</p>
         <button id="btn-oauth-start-unauthorized" class="btn-primary ripple" type="button">
-          开始官方登录并生成 auth.json
+          开始官方登录并自动下载
         </button>
       </div>
 
-      <!-- 已登录状态 -->
-      <div id="state-authorized" class="state-container">
-        <!-- 账户简卡 -->
-        <div class="profile-card">
-          <div class="profile-avatar-container">
-            <img id="user-avatar" class="profile-avatar" src="" alt="用户头像">
-            <div class="avatar-ring"></div>
-          </div>
-          <div class="profile-info">
-            <h3 id="user-name">读取中...</h3>
-            <p id="user-email">读取中...</p>
-          </div>
-          <div id="badge-plan" class="plan-badge">FREE</div>
-        </div>
-
-        <!-- 数据详情面板 -->
-        <div class="details-panel glass-card">
-          <div class="detail-row">
-            <span class="detail-label">状态:</span>
-            <span class="detail-value text-glow-success">登录成功</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">有效期至:</span>
-            <span id="token-expires" class="detail-value">读取中...</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">剩余期限:</span>
-            <span id="token-countdown" class="detail-value text-glow-green">读取中...</span>
-          </div>
-        </div>
-
-        <!-- 核心操作按钮 -->
-        <div class="action-group">
-          <button id="btn-download" class="btn-primary ripple btn-pulse">
-            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>通过 Codex 官方登录导出</span>
-          </button>
-        </div>
-
-        <!-- 使用帮助提示 (折叠卡，默认关闭) -->
-        <details class="accordion-card">
-          <summary class="accordion-header">
-            <h4>使用步骤提示</h4>
-            <svg class="accordion-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </summary>
-          <div class="accordion-content">
-            <div class="guide-steps">
-              <div class="step-item">
-                <span class="step-num">1</span>
-                <div class="step-content">
-                  <h5>第一步：完成官方登录</h5>
-                  <p>点击“通过 Codex 官方登录导出”，完成登录后将浏览器回调地址粘贴回插件，即可保存真实 OAuth 令牌组成的 <code>auth.json</code>。</p>
-                </div>
-              </div>
-              <div class="step-item">
-                <span class="step-num">2</span>
-                <div class="step-content">
-                  <h5>第二步：将文件放入 Codex 配置目录</h5>
-                  <p>将 <code>auth.json</code> 移动到本机 Codex 配置目录中：</p>
-                  <div class="path-details">
-                    <p><strong>Windows:</strong> <code>%USERPROFILE%\.codex\auth.json</code></p>
-                    <p><strong>macOS:</strong> <code>~/.codex/auth.json</code></p>
-                  </div>
-                </div>
-              </div>
-              <div class="step-item">
-                <span class="step-num">3</span>
-                <div class="step-content">
-                  <h5>第三步：启动 Codex</h5>
-                  <p>文件放置完成后启动 Codex。官方登录过程中要求的账户验证仍需按页面提示完成。</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </details>
-
-        <!-- 数据隐私说明 (折叠卡，默认关闭) -->
-        <details class="accordion-card">
-          <summary class="accordion-header">
-            <h4>数据隐私说明</h4>
-            <svg class="accordion-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </summary>
-          <div class="accordion-content">
-            <ul class="privacy-list">
-              <li>
-                <span class="privacy-bullet success">●</span>
-                <div class="privacy-item">
-                  <strong>本地处理</strong>：数据不上云，不存储
-                </div>
-              </li>
-              <li>
-                <span class="privacy-bullet primary">●</span>
-                <div class="privacy-item">
-                  <strong>隐私安全</strong>：直接连接官方认证站点，不经过第三方中转
-                </div>
-              </li>
-              <li>
-                <span class="privacy-bullet warning">●</span>
-                <div class="privacy-item">
-                  <strong>快速生成</strong>：减少重复登录验证
-                </div>
-              </li>
-            </ul>
-          </div>
-        </details>
-
-      </div>
-
-      <section id="oauth-callback-panel" class="oauth-callback-panel" hidden>
-        <h3>完成官方 OAuth 登录</h3>
-        <p>完成登录后，浏览器会跳转到本机回调地址并显示连接失败。复制地址栏中的完整链接，粘贴到下面继续。</p>
-        <textarea id="oauth-callback-url" rows="3" placeholder="http://127.0.0.1:1457/auth/callback?code=...&state=..."></textarea>
-        <button id="btn-oauth-complete" class="btn-primary ripple" type="button">验证回调并导出 auth.json</button>
+      <section id="oauth-status-panel" class="oauth-callback-panel" role="status" aria-live="polite" hidden>
+        <h3>自动登录与下载状态</h3>
+        <p id="oauth-status-message"></p>
       </section>
 
     </main>
